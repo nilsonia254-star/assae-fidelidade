@@ -59,9 +59,24 @@
         .badge-ref { background: #0088ff22; color: #0088ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; border: 1px solid #0088ff44; }
         .badge-dates { background: #00d2d322; color: #00d2d3; padding: 3px 6px; border-radius: 6px; font-weight: bold; border: 1px solid #00d2d344; font-size: 10px; line-height: 1.4; display: inline-block; }
         .badge-expired { background: #ee525322; color: #ff6b6b; padding: 3px 6px; border-radius: 6px; font-weight: bold; border: 1px solid #ee525344; font-size: 10px; }
+
+        /* Tela de bloqueio por inadimplência da licença */
+        #blockScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0A0A0A; z-index: 9999; justify-content: center; align-items: center; padding: 20px; text-align: center; }
+        .block-card { background: #14161d; border: 2px solid #ee5253; border-radius: 16px; padding: 30px; max-width: 450px; box-shadow: 0 10px 40px rgba(238, 82, 83, 0.3); }
+        .block-card h2 { color: #ee5253; font-size: 22px; margin-bottom: 12px; }
+        .block-card p { color: #a0a6b8; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
     </style>
 </head>
 <body>
+    <!-- Tela de bloqueio caso o serviço não esteja pago -->
+    <div id="blockScreen">
+        <div class="block-card">
+            <h2>⚠️ Acesso Suspenso</h2>
+            <p>O acesso a este painel administrativo foi temporariamente suspenso por pendência na regularização do serviço de suporte técnico. Entre em contato com o desenvolvedor para restabelecer o sistema.</p>
+            <div style="font-size: 11px; color: #ff9800; font-weight: bold;">Status: Aguardando regularização</div>
+        </div>
+    </div>
+
     <div class="dashboard-container">
         <div class="header-title">
             <span>🔥 Gestão - Assaê Grill e Gula</span>
@@ -187,14 +202,46 @@
     </div>
 
     <script>
+        // CONFIGURAÇÃO DA URL DO GOOGLE APPS SCRIPT (Cole a URL do Apps Script aqui quando criar a planilha do Assaê)
+        const GOOGLE_SCRIPT_URL = ""; 
+
         let savedClients = localStorage.getItem('assae_clients_list');
         let clientsList = savedClients ? JSON.parse(savedClients) : [
             { id: "AG-1001", name: "Cliente Exemplo", phone: "11984159811", ref: "Direto", points: 5, days: 60, lastUpdate: new Date().toISOString(), finance: "Pago", notes: "Gosta de combo família" }
         ];
 
+        // VERIFICAÇÃO DE LICENÇA / BLOQUEIO REMOTO
+        async function checkLicenseStatus() {
+            if (!GOOGLE_SCRIPT_URL) return; // Se não configurado ainda, deixa rodando local
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL + "?action=checkLicense");
+                const result = await response.json();
+                if (result.status === "BLOQUEADO") {
+                    document.getElementById('blockScreen').style.display = 'flex';
+                } else {
+                    document.getElementById('blockScreen').style.display = 'none';
+                    syncWithGoogleSheets(); // Sincroniza dados se ativo
+                }
+            } catch (e) {
+                console.log("Modo offline / erro na licença:", e);
+            }
+        }
+
+        // SINCRONIZAÇÃO COM O GOOGLE SHEETS
+        function syncWithGoogleSheets() {
+            if (!GOOGLE_SCRIPT_URL) return;
+            fetch(GOOGLE_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(clientsList)
+            }).catch(err => console.log("Erro ao sincronizar nuvem:", err));
+        }
+
         function persistData() {
             localStorage.setItem('assae_clients_list', JSON.stringify(clientsList));
             updateChartData();
+            syncWithGoogleSheets();
         }
 
         function formatDate(dateObj) {
@@ -439,10 +486,8 @@
                 let phoneClean = phoneInput.replace(/\D/g, '');
                 if (!phoneClean.startsWith('55')) { phoneClean = '55' + phoneClean; }
                 
-                // URL base do novo GitHub Pages do Assaê (substitua pelo seu link real depois)
                 const baseUrl = window.location.href.replace('admin.html', 'index.html');
-                
-                const fullLink = `${baseUrl}?nome=${encodeURIComponent(currentName)}&id=${c.id}&pontos=${c.points}&dias=${c.days || 60}`;
+                const fullLink = `${baseUrl}?nome=${encodeURIComponent(currentName)}&id=${c.id}&pontos=${c.points}&dias=${c.days || 60}&data=${encodeURIComponent(c.lastUpdate)}`;
                 const msg = `Olá ${currentName}! 🔥 Seu Cartão Fidelidade no Assaê Grill e Gula está com ${c.points} pontos! A cada 10 pontos você ganha 1 Frango Assado Grátis! Acompanhe seu cartão por aqui: ${fullLink}`;
                 const waUrl = `https://api.whatsapp.com/send?phone=${phoneClean}&text=${encodeURIComponent(msg)}`;
                 window.open(waUrl, '_blank');
@@ -511,6 +556,9 @@
 
         renderTableAndSelect();
         selectClientByIndex(0);
+        
+        // Verifica o status da licença ao carregar a página
+        checkLicenseStatus();
     </script>
 </body>
 </html>
