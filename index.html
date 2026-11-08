@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartão Fidelidade Digital - Assaê Grill e Gula</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: #0A0A0A; color: #FFFFFF; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 12px; }
+        .card-container { width: 100%; max-width: 420px; background: #14161d; border-radius: 20px; padding: 20px; border: 2px solid #ff5722; box-shadow: 0 10px 30px rgba(255, 87, 34, 0.2); text-align: center; }
+        .brand-title { color: #ff5722; font-size: 20px; font-weight: 800; margin-bottom: 2px; letter-spacing: 0.5px; }
+        .brand-subtitle { font-size: 11px; color: #a0a6b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; font-weight: 600; }
+        
+        .welcome-box { background: linear-gradient(135deg, #1a1d26 0%, #101217 100%); border: 1px solid #ff5722; border-radius: 14px; padding: 16px; margin-bottom: 16px; position: relative; }
+        .welcome-box h2 { font-size: 16px; color: #ff5722; margin-bottom: 6px; }
+        .welcome-box p { font-size: 12px; color: #ffffff; line-height: 1.4; }
+        
+        .points-display { font-size: 22px; font-weight: 800; color: #0A0A0A; margin: 10px 0 6px 0; background: linear-gradient(135deg, #ff9800, #ff5722); padding: 10px; border-radius: 12px; border: 1px solid #ff5722; box-shadow: 0 0 10px rgba(255, 87, 34, 0.3); }
+        .dates-info { font-size: 10px; color: #00d2d3; margin-top: 6px; font-weight: 600; }
+
+        .stamps-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+        .stamp { aspect-ratio: 1; background: #1a1d26; border: 2px solid #2a2e3d; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; color: #a0a6b8; position: relative; transition: all 0.3s ease; padding: 4px; text-align: center; }
+        .stamp.filled { background: #14161d; border: 2px solid #ff5722; color: #ffffff; box-shadow: 0 0 8px rgba(255, 87, 34, 0.4); }
+        .stamp-value { font-size: 13px; font-weight: 800; color: #ff9800; }
+        .stamp-label { font-size: 8px; color: #ffffff; margin-top: 1px; line-height: 1; }
+        .stamp-date { font-size: 8px; color: #00d2d3; margin-top: 2px; font-weight: 600; }
+        .stamp.empty { font-size: 14px; color: #a0a6b8; }
+
+        .total-box { background: linear-gradient(135deg, #ff9800, #ff5722); border-radius: 12px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: #0A0A0A; font-weight: 800; }
+        .total-box span { font-size: 13px; text-transform: uppercase; }
+        .total-box strong { font-size: 18px; }
+
+        .info-card { background: #1a1d26; border: 1px solid #232733; border-radius: 12px; padding: 12px; margin-bottom: 16px; text-align: left; font-size: 11px; color: #a0a6b8; line-height: 1.5; }
+        .info-card strong { color: #ffffff; display: block; margin-bottom: 2px; }
+
+        .action-btn { width: 100%; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; border: none; text-decoration: none; display: block; margin-bottom: 10px; text-align: center; transition: opacity 0.2s; }
+        .action-btn:hover { opacity: 0.9; }
+        .btn-whatsapp { background: #00C853; color: #ffffff; }
+        .btn-referral { background: linear-gradient(135deg, #00A8E8, #007EA7); color: #ffffff; }
+        .footer-tip { font-size: 10px; color: #a0a6b8; margin-top: 8px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="card-container">
+        <div class="brand-title">🔥 Assaê Grill e Gula 🔥</div>
+        <div class="brand-subtitle">Cartão Fidelidade Digital</div>
+
+        <div class="welcome-box">
+            <h2 id="clientGreeting">Olá, Cliente! 👋</h2>
+            <p id="recentActivityText">Junte pontos a cada compra de combos e assados 🍗</p>
+            <div class="points-display" id="pointsDisplay">0 pontos 🍗</div>
+            <div class="dates-info" id="datesDisplay">Atualizado em: --/--/---- - Válido até: --/--/----</div>
+        </div>
+
+        <div class="stamps-grid" id="stampsGrid"></div>
+
+        <div class="total-box">
+            <span>Total Acumulado</span>
+            <strong id="totalPointsText">0 PTS</strong>
+        </div>
+
+        <div class="info-card">
+            <strong>📍 Endereço da Loja:</strong>
+            Rua Conde de Avintes, 287 - São Paulo - SP
+            <br><br>
+            <strong>🎁 Regra do Cartão:</strong>
+            A cada 10 pontos acumulados, você ganha <b>1 Frango Assado Grátis</b>! (Validade: <span id="validityDaysText">60</span> dias)
+        </div>
+
+        <!-- Botão de Pedidos / WhatsApp da Loja -->
+        <a id="whatsappBtn" href="#" target="_blank" class="action-btn btn-whatsapp">
+            🍗 Faça seu Pedido: (11) 98415-9811
+        </a>
+
+        <!-- Botão de Indicação -->
+        <button onclick="shareReferral()" class="action-btn btn-referral">
+            🎁 Indique um amigo e ganhe pontos!
+        </button>
+
+        <div class="footer-tip">Toque nos botões acima para pedir ou indicar</div>
+    </div>
+
+    <script>
+        function formatDate(dateObj) {
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            return `${day}/${month}`;
+        }
+
+        function formatFullDate(dateObj) {
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const year = dateObj.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientName = urlParams.get('nome') || 'Cliente';
+        const clientId = urlParams.get('id') || 'AG-1001';
+        const points = parseInt(urlParams.get('pontos')) || 0;
+        const validityDays = parseInt(urlParams.get('dias')) || 60;
+
+        document.getElementById('clientGreeting').innerText = `Olá, ${clientName}! 👋`;
+        document.getElementById('pointsDisplay').innerText = `${points} pontos 🍗`;
+        document.getElementById('totalPointsText').innerText = `${points} PTS`;
+        document.getElementById('validityDaysText').innerText = validityDays;
+
+        const updateDate = new Date();
+        const expiryDate = new Date(updateDate.getTime() + (validityDays * 24 * 60 * 60 * 1000));
+        document.getElementById('datesDisplay').innerText = `Atualizado em ${formatFullDate(updateDate)} - Válido até ${formatFullDate(expiryDate)}`;
+
+        if (points > 0) {
+            document.getElementById('recentActivityText').innerText = `Você ganhou pontos em ${formatDate(updateDate)} 🔥`;
+        }
+
+        // WhatsApp do Assaê Grill e Gula
+        const storePhone = "5511984159811";
+        const orderMsg = encodeURIComponent(`Olá! Vim pelo meu Cartão Fidelidade (${clientId}) do Assaê Grill e Gula e gostaria de fazer um pedido.`);
+        document.getElementById('whatsappBtn').href = `https://api.whatsapp.com/send?phone=${storePhone}&text=${orderMsg}`;
+
+        // Renderizar os 10 selos
+        const grid = document.getElementById('stampsGrid');
+        let historyEntries = [];
+        let ptsLeft = points;
+
+        while (ptsLeft > 0) {
+            let chunk = ptsLeft >= 5 ? 5 : (ptsLeft >= 3 ? 3 : ptsLeft);
+            historyEntries.push({
+                val: `+${chunk}`,
+                date: formatDate(updateDate)
+            });
+            ptsLeft -= chunk;
+        }
+
+        for (let i = 1; i <= 10; i++) {
+            const stamp = document.createElement('div');
+            
+            if (i <= historyEntries.length) {
+                stamp.className = 'stamp filled';
+                stamp.innerHTML = `
+                    <div class="stamp-value">${historyEntries[i-1].val}</div>
+                    <div class="stamp-label">🔥 Combo</div>
+                    <div class="stamp-date">${historyEntries[i-1].date}</div>
+                `;
+            } else {
+                stamp.className = 'stamp empty';
+                stamp.innerHTML = i;
+            }
+            grid.appendChild(stamp);
+        }
+
+        function shareReferral() {
+            const currentUrl = window.location.href.split('?')[0];
+            const refLink = `${currentUrl}?ref=${clientId}`;
+            const shareText = encodeURIComponent(`Olá! Conheça o Assaê Grill e Gula e faça seu Cartão Fidelidade digital! Peça os melhores frangos e combos e ganhe recompensas: ${refLink}`);
+            window.open(`https://api.whatsapp.com/send?text=${shareText}`, '_blank');
+        }
+    </script>
+</body>
+</html>
