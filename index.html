@@ -97,7 +97,10 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const clientName = urlParams.get('nome') || 'Cliente';
-        const clientId = urlParams.get('id') || 'AG-1001';
+        const clientId = (urlParams.get('id') || '').trim();
+        // Link de indicação: ?ref=AG-xxxx (o amigo ainda não tem cartão)
+        const refId = (urlParams.get('ref') || '').trim();
+        const isReferral = !clientId && refId !== '';
         const points = parseInt(urlParams.get('pontos')) || 0;
         const validityDays = parseInt(urlParams.get('dias')) || 60;
 
@@ -106,9 +109,19 @@
         document.getElementById('totalPointsText').innerText = `${points} PTS`;
         document.getElementById('validityDaysText').innerText = validityDays;
 
-        const updateDate = new Date();
+        // Data da última atualização enviada pelo painel (parâmetro "data" do link)
+        let updateDate = new Date(urlParams.get('data') || '');
+        if (isNaN(updateDate.getTime()) || updateDate.getFullYear() > 2030 || updateDate.getFullYear() < 2024) {
+            updateDate = new Date(); // link antigo ou sem data: usa hoje
+        }
         const expiryDate = new Date(updateDate.getTime() + (validityDays * 24 * 60 * 60 * 1000));
         document.getElementById('datesDisplay').innerText = `Atualizado em ${formatFullDate(updateDate)} - Válido até ${formatFullDate(expiryDate)}`;
+
+        const daysLeft = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+        if (daysLeft < 0) {
+            document.getElementById('datesDisplay').innerText = `Atualizado em ${formatFullDate(updateDate)} - Vencido em ${formatFullDate(expiryDate)}`;
+            document.getElementById('datesDisplay').style.color = '#ff6b6b';
+        }
 
         if (points > 0) {
             document.getElementById('recentActivityText').innerText = `Você ganhou pontos em ${formatDate(updateDate)} 🔥`;
@@ -116,32 +129,35 @@
 
         // WhatsApp do Assaê Grill e Gula
         const storePhone = "5511984159811";
-        const orderMsg = encodeURIComponent(`Olá! Vim pelo meu Cartão Fidelidade (${clientId}) do Assaê Grill e Gula e gostaria de fazer um pedido.`);
-        document.getElementById('whatsappBtn').href = `https://api.whatsapp.com/send?phone=${storePhone}&text=${orderMsg}`;
+        let orderText = `Olá! Gostaria de fazer um pedido no Assaê Grill e Gula.`;
+        if (clientId) {
+            orderText = `Olá! Vim pelo meu Cartão Fidelidade (${clientId}) do Assaê Grill e Gula e gostaria de fazer um pedido.`;
+        } else if (isReferral) {
+            orderText = `Olá! Fui indicado pelo cliente do cartão ${refId} e gostaria de fazer meu primeiro pedido no Assaê Grill e Gula.`;
+        }
+        document.getElementById('whatsappBtn').href = `https://api.whatsapp.com/send?phone=${storePhone}&text=${encodeURIComponent(orderText)}`;
+
+        // Tela para quem chegou por indicação (ainda sem cartão)
+        if (isReferral) {
+            document.getElementById('clientGreeting').innerText = 'Olá! Você foi indicado 🔥';
+            document.getElementById('recentActivityText').innerText = 'Faça seu primeiro pedido e ganhe seu Cartão Fidelidade digital 🍗';
+            document.getElementById('datesDisplay').innerText = `Indicação do cliente ${refId}`;
+        }
 
         // Renderizar os 10 selos
+        // Cada quadrado = 1 ponto. 10 pontos = 1 Frango Assado grátis.
         const grid = document.getElementById('stampsGrid');
-        let historyEntries = [];
-        let ptsLeft = points;
-
-        while (ptsLeft > 0) {
-            let chunk = ptsLeft >= 5 ? 5 : (ptsLeft >= 3 ? 3 : ptsLeft);
-            historyEntries.push({
-                val: `+${chunk}`,
-                date: formatDate(updateDate)
-            });
-            ptsLeft -= chunk;
-        }
+        const freeChickens = Math.floor(points / 10);
+        const remainder = points % 10;
+        const filledStamps = (points > 0 && remainder === 0) ? 10 : remainder;
 
         for (let i = 1; i <= 10; i++) {
             const stamp = document.createElement('div');
-            
-            if (i <= historyEntries.length) {
+            if (i <= filledStamps) {
                 stamp.className = 'stamp filled';
                 stamp.innerHTML = `
-                    <div class="stamp-value">${historyEntries[i-1].val}</div>
-                    <div class="stamp-label">🔥 Combo</div>
-                    <div class="stamp-date">${historyEntries[i-1].date}</div>
+                    <div class="stamp-value">🍗</div>
+                    <div class="stamp-label">${i}º ponto</div>
                 `;
             } else {
                 stamp.className = 'stamp empty';
@@ -150,9 +166,15 @@
             grid.appendChild(stamp);
         }
 
+        if (freeChickens > 0 && !isReferral) {
+            document.getElementById('recentActivityText').innerText =
+                `🎉 Você já tem ${freeChickens} Frango${freeChickens > 1 ? 's' : ''} Assado${freeChickens > 1 ? 's' : ''} grátis para resgatar!`;
+        }
+
         function shareReferral() {
             const currentUrl = window.location.href.split('?')[0];
-            const refLink = `${currentUrl}?ref=${clientId}`;
+            const whoRefers = clientId || refId;
+            const refLink = whoRefers ? `${currentUrl}?ref=${encodeURIComponent(whoRefers)}` : currentUrl;
             const shareText = encodeURIComponent(`Olá! Conheça o Assaê Grill e Gula e faça seu Cartão Fidelidade digital! Peça os melhores frangos e combos e ganhe recompensas: ${refLink}`);
             window.open(`https://api.whatsapp.com/send?text=${shareText}`, '_blank');
         }
