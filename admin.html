@@ -59,24 +59,9 @@
         .badge-ref { background: #0088ff22; color: #0088ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; border: 1px solid #0088ff44; }
         .badge-dates { background: #00d2d322; color: #00d2d3; padding: 3px 6px; border-radius: 6px; font-weight: bold; border: 1px solid #00d2d344; font-size: 10px; line-height: 1.4; display: inline-block; }
         .badge-expired { background: #ee525322; color: #ff6b6b; padding: 3px 6px; border-radius: 6px; font-weight: bold; border: 1px solid #ee525344; font-size: 10px; }
-
-        /* Tela de bloqueio por inadimplência da licença */
-        #blockScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0A0A0A; z-index: 9999; justify-content: center; align-items: center; padding: 20px; text-align: center; }
-        .block-card { background: #14161d; border: 2px solid #ee5253; border-radius: 16px; padding: 30px; max-width: 450px; box-shadow: 0 10px 40px rgba(238, 82, 83, 0.3); }
-        .block-card h2 { color: #ee5253; font-size: 22px; margin-bottom: 12px; }
-        .block-card p { color: #a0a6b8; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <!-- Tela de bloqueio caso o serviço não esteja pago -->
-    <div id="blockScreen">
-        <div class="block-card">
-            <h2>⚠️ Acesso Suspenso</h2>
-            <p>O acesso a este painel administrativo foi temporariamente suspenso por pendência na regularização do serviço de suporte técnico. Entre em contato com o desenvolvedor para restabelecer o sistema.</p>
-            <div style="font-size: 11px; color: #ff9800; font-weight: bold;">Status: Aguardando regularização</div>
-        </div>
-    </div>
-
     <div class="dashboard-container">
         <div class="header-title">
             <span>🔥 Gestão - Assaê Grill e Gula</span>
@@ -202,46 +187,37 @@
     </div>
 
     <script>
-        // CONFIGURAÇÃO DA URL DO GOOGLE APPS SCRIPT (Cole a URL do Apps Script aqui quando criar a planilha do Assaê)
-        const GOOGLE_SCRIPT_URL = ""; 
-
         let savedClients = localStorage.getItem('assae_clients_list');
         let clientsList = savedClients ? JSON.parse(savedClients) : [
             { id: "AG-1001", name: "Cliente Exemplo", phone: "11984159811", ref: "Direto", points: 5, days: 60, lastUpdate: new Date().toISOString(), finance: "Pago", notes: "Gosta de combo família" }
         ];
 
-        // VERIFICAÇÃO DE LICENÇA / BLOQUEIO REMOTO
-        async function checkLicenseStatus() {
-            if (!GOOGLE_SCRIPT_URL) return; // Se não configurado ainda, deixa rodando local
-            try {
-                const response = await fetch(GOOGLE_SCRIPT_URL + "?action=checkLicense");
-                const result = await response.json();
-                if (result.status === "BLOQUEADO") {
-                    document.getElementById('blockScreen').style.display = 'flex';
-                } else {
-                    document.getElementById('blockScreen').style.display = 'none';
-                    syncWithGoogleSheets(); // Sincroniza dados se ativo
-                }
-            } catch (e) {
-                console.log("Modo offline / erro na licença:", e);
-            }
+        // ---------- IDs e correção de dados antigos ----------
+        // Próximo ID livre: maior número já usado + 1 (nunca repete, mesmo depois de excluir clientes)
+        function nextClientId() {
+            let max = 1000;
+            clientsList.forEach(c => {
+                const m = /^AG-(\d+)$/.exec(c.id || '');
+                if (m) max = Math.max(max, parseInt(m[1]));
+            });
+            return 'AG-' + (max + 1);
         }
 
-        // SINCRONIZAÇÃO COM O GOOGLE SHEETS
-        function syncWithGoogleSheets() {
-            if (!GOOGLE_SCRIPT_URL) return;
-            fetch(GOOGLE_SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(clientsList)
-            }).catch(err => console.log("Erro ao sincronizar nuvem:", err));
+        // Conserta dados já salvos: IDs repetidos/faltando, pontos e datas inválidas
+        function normalizeClients() {
+            const seen = new Set();
+            clientsList.forEach(c => {
+                if (!c.id || seen.has(c.id)) c.id = nextClientId();
+                seen.add(c.id);
+                c.points = Math.max(0, parseInt(c.points) || 0);
+                if (!c.lastUpdate || isNaN(new Date(c.lastUpdate).getTime())) c.lastUpdate = new Date().toISOString();
+            });
         }
+        normalizeClients();
 
         function persistData() {
             localStorage.setItem('assae_clients_list', JSON.stringify(clientsList));
             updateChartData();
-            syncWithGoogleSheets();
         }
 
         function formatDate(dateObj) {
@@ -402,9 +378,11 @@
 
         function addPoints(pts) {
             if(clientsList.length > 0) {
-                clientsList[currentIndex].name = document.getElementById('clientName').value || clientsList[currentIndex].name;
-                clientsList[currentIndex].points = Math.max(0, clientsList[currentIndex].points + pts);
-                clientsList[currentIndex].lastUpdate = new Date().toISOString(); 
+                const c = clientsList[currentIndex];
+                c.name = document.getElementById('clientName').value || c.name;
+                c.points = Math.max(0, c.points + pts);
+                // Só um lançamento de pontos renova a data; a correção (- 1 Ponto) não mexe na validade
+                if (pts > 0) c.lastUpdate = new Date().toISOString();
                 renderTableAndSelect();
                 selectClientByIndex(currentIndex);
             }
@@ -421,7 +399,7 @@
 
         function adjustDays(days) {
             if(clientsList.length > 0) {
-                clientsList[currentIndex].days = Math.max(0, (clientsList[currentIndex].days || 60) + days);
+                clientsList[currentIndex].days = Math.max(1, (parseInt(clientsList[currentIndex].days) || 60) + days);
                 document.getElementById('validityDays').value = clientsList[currentIndex].days;
                 renderTableAndSelect();
                 selectClientByIndex(currentIndex);
@@ -469,7 +447,7 @@
             if(name) {
                 const phone = prompt("Digite o WhatsApp com DDD:", "119");
                 const ref = prompt("Quem indicou?") || "Direto";
-                const newId = "AG-100" + (clientsList.length + 1);
+                const newId = nextClientId();
                 clientsList.push({ id: newId, name: name, phone: phone || "", ref: ref, points: 0, days: 60, lastUpdate: new Date().toISOString(), finance: "", notes: "" });
                 renderTableAndSelect();
                 selectClientByIndex(clientsList.length - 1);
@@ -486,7 +464,7 @@
                 let phoneClean = phoneInput.replace(/\D/g, '');
                 if (!phoneClean.startsWith('55')) { phoneClean = '55' + phoneClean; }
                 
-                const baseUrl = window.location.href.replace('admin.html', 'index.html');
+                const baseUrl = window.location.href.split(/[?#]/)[0].replace(/admin\.html$/, 'index.html');
                 const fullLink = `${baseUrl}?nome=${encodeURIComponent(currentName)}&id=${c.id}&pontos=${c.points}&dias=${c.days || 60}&data=${encodeURIComponent(c.lastUpdate)}`;
                 const msg = `Olá ${currentName}! 🔥 Seu Cartão Fidelidade no Assaê Grill e Gula está com ${c.points} pontos! A cada 10 pontos você ganha 1 Frango Assado Grátis! Acompanhe seu cartão por aqui: ${fullLink}`;
                 const waUrl = `https://api.whatsapp.com/send?phone=${phoneClean}&text=${encodeURIComponent(msg)}`;
@@ -507,7 +485,9 @@
                     "Válido até": dates.expiryFormatted,
                     "Dias Restantes": dates.daysLeft,
                     "Financeiro": c.finance || '',
-                    "Anotações": c.notes || ''
+                    "Anotações": c.notes || '',
+                    "Validade (dias)": parseInt(c.days) || 60,
+                    "Atualizado (ISO)": c.lastUpdate || ''
                 };
             });
 
@@ -515,6 +495,52 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes_Assae");
             XLSX.writeFile(workbook, `Assae_Grill_Clientes_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function normHeader(s) {
+            return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        }
+
+        // Aceita data ISO, "DD/MM/AAAA" ou data numérica do Excel; devolve ISO completo ou ''
+        function cellToIso(v) {
+            if (typeof v === 'number' && v > 20000) return new Date(Math.round((v - 25569) * 86400000) + 12 * 3600000).toISOString();
+            const s = String(v || '').trim();
+            const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+            if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]), 12).toISOString();
+            if (/^\d{4}-\d{2}-\d{2}/.test(s) && !isNaN(new Date(s).getTime())) return new Date(s).toISOString();
+            return '';
+        }
+
+        // Lê uma linha da planilha. Com cabeçalhos (arquivo do botão "Baixar Excel") usa o NOME de cada coluna;
+        // sem cabeçalho "Nome", usa a ordem antiga: B = nome, C = WhatsApp, D = indicação, E = pontos.
+        function parseImportRow(cols, headers, hasHeaders) {
+            const get = (name, pos) => {
+                if (!hasHeaders) return pos === undefined ? '' : cols[pos];
+                const i = headers.indexOf(name);
+                return i === -1 ? '' : cols[i];
+            };
+            const name = String(get('nome', 1) || '').trim();
+            if (!name) return null;
+
+            const lastUpdate = cellToIso(get('atualizado (iso)')) || cellToIso(get('atualizado em')) || new Date().toISOString();
+            let days = parseInt(get('validade (dias)'));
+            if (!days) {
+                const exp = cellToIso(get('valido ate'));
+                if (exp) days = Math.round((new Date(exp) - new Date(lastUpdate)) / 86400000);
+            }
+            if (!days || days < 1) days = 60;
+
+            return {
+                id: String(get('id', 0) || '').trim(),
+                name: name,
+                phone: String(get('whatsapp', 2) || '').replace(/\D/g, ''),
+                ref: String(get('indicada por', 3) || '').trim() || 'Direto',
+                points: Math.max(0, parseInt(get('pontos', 4)) || 0),
+                days: days,
+                lastUpdate: lastUpdate,
+                finance: String(get('financeiro') || '').trim(),
+                notes: String(get('anotacoes') || '').trim()
+            };
         }
 
         function importFromExcel(event) {
@@ -526,39 +552,42 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                    
-                    let imported = [];
-                    for (let i = 1; i < jsonRows.length; i++) {
-                        const cols = jsonRows[i];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                    const headers = (rows[0] || []).map(normHeader);
+                    const hasHeaders = headers.indexOf('nome') !== -1;
+
+                    let added = 0, updated = 0;
+                    for (let i = 1; i < rows.length; i++) {
+                        const cols = rows[i];
                         if (!cols || cols.length === 0) continue;
-                        let id = `AG-100${i}`;
-                        let name = cols[1] || `Cliente ${i}`;
-                        let phone = String(cols[2] || '').replace(/\D/g, '');
-                        let ref = cols[3] || 'Direto';
-                        let points = parseInt(cols[4]) || 0;
-                        
-                        imported.push({ 
-                            id: id, name: name, phone: phone, ref: ref, points: points, 
-                            days: 60, lastUpdate: new Date().toISOString(), finance: cols[7] || '', notes: cols[8] || '' 
-                        });
+                        const parsed = parseImportRow(cols, headers, hasHeaders);
+                        if (!parsed) continue;
+                        // Mesmo ID já existe? Atualiza o cliente em vez de duplicar ou apagar a lista.
+                        const existing = parsed.id ? clientsList.find(c => c.id === parsed.id) : null;
+                        if (existing) {
+                            Object.assign(existing, parsed);
+                            updated++;
+                        } else {
+                            if (!/^AG-\d+$/.test(parsed.id)) parsed.id = nextClientId();
+                            clientsList.push(parsed);
+                            added++;
+                        }
                     }
-                    if(imported.length > 0) {
-                        clientsList = imported;
+                    if (added + updated > 0) {
                         renderTableAndSelect();
                         selectClientByIndex(0);
-                        alert(`Sucesso! ${imported.length} clientes importados!`);
+                        alert(`Importação concluída: ${added} cliente(s) novo(s) e ${updated} atualizado(s).`);
+                    } else {
+                        alert("Nenhum cliente válido encontrado no arquivo.");
                     }
                 } catch (error) { alert("Erro ao ler o arquivo XLSX."); }
+                event.target.value = ''; // permite importar o mesmo arquivo de novo
             };
             reader.readAsArrayBuffer(file);
         }
 
         renderTableAndSelect();
         selectClientByIndex(0);
-        
-        // Verifica o status da licença ao carregar a página
-        checkLicenseStatus();
     </script>
 </body>
 </html>
